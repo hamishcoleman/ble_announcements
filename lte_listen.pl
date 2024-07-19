@@ -11,6 +11,10 @@ Listen for BLE advertisements and dump
 
 import argparse
 import bluetooth._bluetooth as bluez
+import sys
+
+
+EVT_LE_META_EVENT = 0x3e
 
 
 class MACAddr:
@@ -24,91 +28,112 @@ class MACAddr:
         return ":".join(a)
 
 
-def _manuf(buf):
-    names = {
-        0x4c: "Apple",
-        0x75: "Samsung",
-        0x611: "Beurer",
-        0x6a8: "GD_Midea",
-    }
-    manuf = int.from_bytes(buf[0:2], byteorder="little")
-    if manuf in names:
-        manuf = names[manuf]
-    else:
-        manuf = f"0x{manuf:x}"
-    data = buf[2:]
-    return f"{manuf}:{data.hex()}"
+class BLE_Tag_Base:
+    def __init__(self, buf):
+        self.id = buf[0]
+        self.rawdata = buf[1:]
+        self.short = str(self.id)
+        self.desc = "Unknown"
+
+    def _str_data(self):
+        return self.rawdata.hex()
+
+    def __str__(self):
+        return f"{self.short}={self._str_data()}"
 
 
-def _s8dBm(buf):
-    b = int.from_bytes(buf[0:1], byteorder="little", signed=True)
-    return f"{b}dBm"
+class BLE_Tag_Flags(BLE_Tag_Base):
+    def __init__(self, buf):
+        super().__init__(buf)
+        self.short = "F"
+        self.desc = "Flags"
+        # rawdata is 1 byte bitmapped flags
 
 
-def _str(buf):
-    return buf.decode("utf8")
+class BLE_Tag_UUID(BLE_Tag_Base):
+    def __init__(self, buf):
+        super().__init__(buf)
+        self.short = "U"
+        self.desc = "UUID"
+        # rawdata is u16
 
 
-def _u8hex(buf):
-    b = buf[0]
-    return f"0x{b:02x}"
+class BLE_Tag_Name(BLE_Tag_Base):
+    def __init__(self, buf):
+        super().__init__(buf)
+        self.short = "N"
+        self.desc = "Complete Local Name"
+
+    def _str_data(self):
+        return self.rawdata.decode("utf8")
 
 
-def _u16hex_nox(buf):
-    b = int.from_bytes(buf[0:2], byteorder="little")
-    return f"{b:04x}"
+class BLE_Tag_TXpower(BLE_Tag_Base):
+    def __init__(self, buf):
+        super().__init__(buf)
+        self.short = "Tx"
+        self.desc = "Tx Power Level"
+
+    def _str_data(self):
+        b = int.from_bytes(self.rawdata[0:1], byteorder="little", signed=True)
+        return f"{b}dBm"
+
+
+class BLE_Tag_Appearance(BLE_Tag_Base):
+    def __init__(self, buf):
+        super().__init__(buf)
+        self.short = "Icon"
+        self.desc = "Appearance"
+        self.icon_id = int.from_bytes(self.rawdata[0:2], byteorder="little")
+
+    def icon(self):
+        names = {
+            0x00c0: "Watch",
+        }
+        return names.get(self.icon_id, f"0x{self.icon_id:x}")
+
+    def _str_data(self):
+        return self.icon()
+
+
+class BLE_Tag_Manufacturer(BLE_Tag_Base):
+    def __init__(self, buf):
+        super().__init__(buf)
+        self.short = "M"
+        self.desc = "Manufacturer Specific"
+        self.manuf_id = int.from_bytes(self.rawdata[0:2], byteorder="little")
+        self.rawdata = self.rawdata[2:]
+
+    def manuf(self):
+        names = {
+            0x4c: "Apple",
+            0x75: "Samsung",
+            0x611: "Beurer",
+            0x6a8: "GD_Midea",
+        }
+        return names.get(self.manuf_id, f"0x{self.manuf_id:x}")
+
+    def _str_data(self):
+        return f"{self.manuf()}:{self.rawdata.hex()}"
 
 
 class BLE_Tag:
+    @classmethod
+    def from_buf(cls, buf):
+        """Extract the id and create an object of the correct class"""
+        id = buf[0]
 
-    tag_ids = {
-        0x01: {
-            "desc": "Flags",
-            "short": "F",
-            "str": _u8hex,
-        },
-        0x02: {
-            "desc": "UUID",
-            "short": "U",
-            "str": _u16hex_nox,
-        },
-        0x09: {
-            "desc": "Complete Local Name",
-            "short": "N",
-            "str": _str,
-        },
-        0x0a: {
-            "desc": "TX Power Level",
-            "short": "Tx",
-            "str": _s8dBm,
-        },
-        0x19: {
-            "desc": "Appearance",
-            "short": "Icon",
-            "str": _u16hex_nox,
-        },
-        0xff: {
-            "desc": "Manufacturer Specific",
-            "short": "M",
-            "str": _manuf,
-        },
-    }
+        id2cls = {
+            0x01: BLE_Tag_Flags,
+            0x02: BLE_Tag_UUID,
+            0x09: BLE_Tag_Name,
+            0x0a: BLE_Tag_TXpower,
+            0x19: BLE_Tag_Appearance,
+            0xff: BLE_Tag_Manufacturer,
+        }
+        cls = id2cls.get(id, BLE_Tag_Base)
 
-    def __init__(self, buf):
-        self.buf = buf
-
-    def __str__(self):
-        id = self.id()
-        if id in self.tag_ids:
-            tag_info = self.tag_ids[id]
-            return tag_info["short"] + ":" + tag_info["str"](self.data())
-        return str(self.buf)
-
-    def id(self):
-        return self.buf[0]
-
-    def data(self):
-        return self.buf[1:]
+        return cls(buf)
 
 
 class Message:
@@ -131,9 +156,6 @@ class Message:
         self.tags.append(tag)
 
 
-EVT_LE_META_EVENT = 0x3e
-
-
 def handle_buf_inner2(msg, buf):
     """second layer wrapped message"""
     # TODO: It probably has a type name
@@ -145,7 +167,7 @@ def handle_buf_inner2(msg, buf):
         obj_buf = buf[pos:pos + obj_len]
         pos += obj_len
 
-        tag = BLE_Tag(obj_buf)
+        tag = BLE_Tag.from_buf(obj_buf)
         msg.add_tag(tag)
 
 
@@ -258,6 +280,7 @@ def main():
     while True:
         buf = dev.recv(64)
         print(handle_buf(buf))
+        sys.stdout.flush()
 
     # If saved, restore
     # dev.setsockopt(bluez.SOL_HCI, bluez.HCI_FILTER, filter_saved)
