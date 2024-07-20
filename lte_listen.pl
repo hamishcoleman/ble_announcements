@@ -12,6 +12,7 @@ Listen for BLE advertisements and dump
 import argparse
 import bluetooth._bluetooth as bluez
 import sys
+import time
 
 
 EVT_LE_META_EVENT = 0x3e
@@ -35,22 +36,15 @@ class BTHome:
 
     def __init__(self, buf):
         self.info = buf[0]
-        self.seq = None
-        self.batt = None
-        self.temperature = None
-        self.humidity = None
+        self.measurements = {}
         self._parse_measurements(buf[1:])
 
     def __str__(self):
-        return ":".join([
-            "BTHome",
-            ",".join([
-                str(self.seq),
-                str(self.batt),
-                str(self.temperature),
-                str(self.humidity),
-            ]),
-        ])
+        s = ["BTHome"]
+        for k,v in self.measurements.items():
+            s += [k, str(v)]
+
+        return " ".join(s)
 
     def _parse_measurements(self, buf):
         pos = 0
@@ -60,38 +54,69 @@ class BTHome:
 
             # TODO: this could return objects
 
-            if obj_id == 0:
-                self.seq = buf[pos]
-                pos += 1
-                continue
-            if obj_id == 1:
-                self.batt = buf[pos]
-                pos += 1
-                continue
-            if obj_id == 2:
-                raw = int.from_bytes(buf[pos:pos+2], "little", signed=True)
-                self.temperature = raw / 100
-                pos += 2
-                continue
-            if obj_id == 3:
-                raw = int.from_bytes(buf[pos:pos+2], "little", signed=True)
-                self.humidity = raw / 100
-                pos += 2
-                continue
-            if obj_id == 0x0c:
-                raw = int.from_bytes(buf[pos:pos+2], "little", signed=True)
-                voltage = raw * 0.001
-                # TODO: how to store random measurements
-                pos += 2
-                continue
-            if obj_id == 0x10:
-                power = buf[pos] == 1
-                # TODO: how to store random measurements
-                pos += 1
-                continue
+            data_types = {
+                0: {
+                    "name": "sequence",
+                    "size": 1,
+                    "type": "u8",
+                },
+                1: {
+                    "name": "battery",
+                    "size": 1,
+                    "type": "u8",
+                    "unit": "%",
+                },
+                2: {
+                    "name": "temperature",
+                    "size": 2,
+                    "type": "s16",
+                    "factor": 0.01,
+                    "unit": "°C",
+                },
+                3: {
+                    "name": "humidity",
+                    "size": 2,
+                    "type": "u16",
+                    "factor": 0.01,
+                    "unit": "%",
+                },
+                0x0c: {
+                    "name": "voltage",
+                    "size": 2,
+                    "type": "u16",
+                    "factor": 0.001,
+                    "unit": "V",
+                },
+                0x10: {
+                    "name": "power",
+                    "size": 1,
+                    "type": "bool",
+                },
+            }
 
-            # TODO: be more resilient in the face of unknown
-            raise ValueError(f"Unknown BTHome measurement {obj_id}")
+            if obj_id not in data_types:
+                # TODO: be more resilient in the face of unknown
+                raise ValueError(f"Unknown BTHome measurement {obj_id}")
+
+            type = data_types[obj_id]
+
+            if type["type"] == "u8":
+                raw = buf[pos]
+            elif type["type"] == "s16":
+                raw = int.from_bytes(buf[pos:pos+2], "little", signed=True)
+            elif type["type"] == "u16":
+                raw = int.from_bytes(buf[pos:pos+2], "little")
+            elif type["type"] == "bool":
+                raw = buf[pos] != 0
+
+            pos += type["size"]
+
+            if "factor" in type:
+                value = raw * type["factor"]
+            else:
+                value = raw
+
+            self.measurements[type["name"]] = value
 
 
 class BLE_Tag_Base:
@@ -375,7 +400,8 @@ def main():
 
     while True:
         buf = dev.recv(64)
-        print(handle_buf(buf))
+        now = int(time.time())
+        print(now, handle_buf(buf))
         sys.stdout.flush()
 
     # If saved, restore
