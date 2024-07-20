@@ -28,6 +28,72 @@ class MACAddr:
         return ":".join(a)
 
 
+class BTHome:
+    @classmethod
+    def from_buf(cls, buf):
+        return cls(buf)
+
+    def __init__(self, buf):
+        self.info = buf[0]
+        self.seq = None
+        self.batt = None
+        self.temperature = None
+        self.humidity = None
+        self._parse_measurements(buf[1:])
+
+    def __str__(self):
+        return ":".join([
+            "BTHome",
+            ",".join([
+                str(self.seq),
+                str(self.batt),
+                str(self.temperature),
+                str(self.humidity),
+            ]),
+        ])
+
+    def _parse_measurements(self, buf):
+        pos = 0
+        while pos < len(buf):
+            obj_id = buf[pos]
+            pos += 1
+
+            # TODO: this could return objects
+
+            if obj_id == 0:
+                self.seq = buf[pos]
+                pos += 1
+                continue
+            if obj_id == 1:
+                self.batt = buf[pos]
+                pos += 1
+                continue
+            if obj_id == 2:
+                raw = int.from_bytes(buf[pos:pos+2], "little", signed=True)
+                self.temperature = raw / 100
+                pos += 2
+                continue
+            if obj_id == 3:
+                raw = int.from_bytes(buf[pos:pos+2], "little", signed=True)
+                self.humidity = raw / 100
+                pos += 2
+                continue
+            if obj_id == 0x0c:
+                raw = int.from_bytes(buf[pos:pos+2], "little", signed=True)
+                voltage = raw * 0.001
+                # TODO: how to store random measurements
+                pos += 2
+                continue
+            if obj_id == 0x10:
+                power = buf[pos] == 1
+                # TODO: how to store random measurements
+                pos += 1
+                continue
+
+            # TODO: be more resilient in the face of unknown
+            raise ValueError(f"Unknown BTHome measurement {obj_id}")
+
+
 class BLE_Tag_Base:
     def __init__(self, buf):
         self.id = buf[0]
@@ -40,6 +106,10 @@ class BLE_Tag_Base:
 
     def __str__(self):
         return f"{self.short}={self._str_data()}"
+
+    @classmethod
+    def from_buf(cls, buf):
+        return cls(buf)
 
 
 class BLE_Tag_Flags(BLE_Tag_Base):
@@ -77,6 +147,29 @@ class BLE_Tag_TXpower(BLE_Tag_Base):
     def _str_data(self):
         b = int.from_bytes(self.rawdata[0:1], byteorder="little", signed=True)
         return f"{b}dBm"
+
+
+class BLE_Tag_Service_Data(BLE_Tag_Base):
+    def __init__(self, buf):
+        super().__init__(buf)
+        self.short = "S"
+        self.desc = "Service"
+        self.uuid = int.from_bytes(self.rawdata[0:2], byteorder="big")
+        self.rawdata = self.rawdata[2:]
+
+    def _str_data(self):
+        return f"{self.uuid:04x}:{self.rawdata.hex()}"
+
+    @classmethod
+    def from_buf(cls, buf):
+        id = buf[0]
+        uuid = int.from_bytes(buf[1:3], byteorder="big")
+        id2cls = {
+            0xd2fc: BTHome,
+        }
+        if uuid in id2cls:
+            return id2cls[uuid].from_buf(buf[3:])
+        return cls(buf)
 
 
 class BLE_Tag_Appearance(BLE_Tag_Base):
@@ -128,12 +221,13 @@ class BLE_Tag:
             0x02: BLE_Tag_UUID,
             0x09: BLE_Tag_Name,
             0x0a: BLE_Tag_TXpower,
+            0x16: BLE_Tag_Service_Data,
             0x19: BLE_Tag_Appearance,
             0xff: BLE_Tag_Manufacturer,
         }
         cls = id2cls.get(id, BLE_Tag_Base)
 
-        return cls(buf)
+        return cls.from_buf(buf)
 
 
 class Message:
@@ -183,12 +277,14 @@ def handle_buf_inner1(buf):
     # - how do we know it ends?
     flags = buf[pos:pos+3]
     pos += 3
-    if flags not in [b'\x02\x01\x00', b'\x02\x01\x03']:
+    if flags not in [b'\x02\x01\x00', b'\x02\x01\x02',  b'\x02\x01\x03']:
+        # TODO: be more resilient
         raise ValueError(f"unexpected {flags} {pos} {buf}")
     # TODO: msg.flags0 = flags
 
     # unknown
     if buf[pos] not in [0, 1]:
+        # TODO: be more resilient
         raise ValueError(f"unexpected {buf[pos]} {pos} {buf}")
     pos += 1
     # TODO: msg.?? =
