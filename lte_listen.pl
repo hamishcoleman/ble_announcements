@@ -239,6 +239,9 @@ class BLE_Tag:
     @classmethod
     def from_buf(cls, buf):
         """Extract the id and create an object of the correct class"""
+        if len(buf) < 1:
+            return None
+
         id = buf[0]
 
         id2cls = {
