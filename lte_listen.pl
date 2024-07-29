@@ -385,8 +385,10 @@ def main():
     dev = bluez.hci_open_dev(devid)
 
     # Maybe:
+    # systemctl stop bluetooth
     # hciconfig hci0 up
     # btmgmt le on
+    # needs one more thing...
 
     # Maybe save old filter?
     # filter_saved = dev.getsockopt(bluez.SOL_HCI, bluez.HCI_FILTER, 14)
