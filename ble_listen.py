@@ -443,22 +443,25 @@ def main():
     bluez.hci_filter_set_event(filter, EVT_LE_META_EVENT)
     dev.setsockopt(bluez.SOL_HCI, bluez.HCI_FILTER, filter)
 
-    while True:
-        buf = dev.recv(64)
-        now = int(time.time())
-        print(now, handle_buf(buf))
-        sys.stdout.flush()
+    try:
+        while True:
+            buf = dev.recv(64)
+            now = int(time.time())
+            print(now, handle_buf(buf))
+            sys.stdout.flush()
+    except KeyboardInterrupt:
+        # If saved, restore
+        # dev.setsockopt(bluez.SOL_HCI, bluez.HCI_FILTER, filter_saved)
 
-    # If saved, restore
-    # dev.setsockopt(bluez.SOL_HCI, bluez.HCI_FILTER, filter_saved)
-
-    # Stop scanning when we exit
-    r = dll.hci_le_set_scan_enable(
-        dev.fileno(),
-        0,            # enable = False
-        0,            # filter_dup
-        10000
-    )
+        # Stop scanning when we exit
+        # (some devices will return "busy" errors if scanning is enabled
+        # when we ask them to enable scanning)
+        r = dll.hci_le_set_scan_enable(
+            dev.fileno(),
+            0,            # enable = False
+            0,            # filter_dup
+            10000
+        )
 
 
 if __name__ == "__main__":
