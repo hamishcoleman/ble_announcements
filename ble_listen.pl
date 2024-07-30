@@ -119,6 +119,26 @@ class BTHome:
             self.measurements[type["name"]] = value
 
 
+class MiBeacon:
+    # Theoretically, this packet format could include useful sensor data,
+    # but the device I had to test with did not send anything useful, so
+    # There ended up being nothing further to decode
+    #
+
+    @classmethod
+    def from_buf(cls, buf):
+        return cls(buf)
+
+    def __init__(self, buf):
+        self.buf = buf
+
+    def __str__(self):
+        s = ["MiBeacon"]
+        s += [self.buf.hex()]
+
+        return " ".join(s)
+
+
 class BLE_Tag_Base:
     def __init__(self, buf):
         self.id = buf[0]
@@ -190,6 +210,7 @@ class BLE_Tag_Service_Data(BLE_Tag_Base):
         id = buf[0]
         uuid = int.from_bytes(buf[1:3], byteorder="big")
         id2cls = {
+            0x95fe: MiBeacon,
             0xd2fc: BTHome,
         }
         if uuid in id2cls:
