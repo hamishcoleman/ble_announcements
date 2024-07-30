@@ -12,7 +12,7 @@ On a raspberry PI with built-in bluetooth (tested on a rpi v3)
 - systemctl stop bluetooth
 - hciconfig hci0 up
 - btmgmt le on
-- ./ble_listen.pl
+- ./ble_listen.py
 
 There may be one other step needed to put the adaptor into the correct mode
 but more clean-slate testing is needed to prove this.
