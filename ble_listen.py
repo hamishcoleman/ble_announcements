@@ -11,6 +11,7 @@ Listen for BLE advertisements and dump
 
 import argparse
 import bluetooth._bluetooth as bluez
+import ctypes
 import sys
 import time
 
@@ -401,15 +402,38 @@ def main():
     args = argparser()
 
     devid = bluez.hci_devid(args.interface)
-    assert devid >= 0
+    if devid < 0:
+        raise ValueError(f"devid error {devid}")
 
     dev = bluez.hci_open_dev(devid)
+
+    dll = ctypes.CDLL("libbluetooth.so.3")
+
+    if False:
+        # These are often the default values, maybe we can skip setting it?
+        dll.hci_le_set_scan_parameters(
+            dev.fileno(),
+            0,            # scan_type = passive
+            16,           # interval
+            16,           # window
+            0,            # own_type (unused if passive?)
+            0,            # filter_policy = unfiltered
+            10000         # to
+        )
+
+    r = dll.hci_le_set_scan_enable(
+        dev.fileno(),
+        1,            # enable = True
+        0,            # filter_dup
+        10000
+    )
+    if r != 0:
+        # probably eperm
+        raise ValueError(f"le set scan enable returned {r}")
 
     # Maybe:
     # systemctl stop bluetooth
     # hciconfig hci0 up
-    # btmgmt le on
-    # needs one more thing...
 
     # Maybe save old filter?
     # filter_saved = dev.getsockopt(bluez.SOL_HCI, bluez.HCI_FILTER, 14)
@@ -419,11 +443,6 @@ def main():
     bluez.hci_filter_set_event(filter, EVT_LE_META_EVENT)
     dev.setsockopt(bluez.SOL_HCI, bluez.HCI_FILTER, filter)
 
-    # FIXME:
-    # - how do we know we have permissions to listen?
-    # - running this with user perms simply ends up never getting data
-    #   (No errors registered)
-
     while True:
         buf = dev.recv(64)
         now = int(time.time())
@@ -432,6 +451,14 @@ def main():
 
     # If saved, restore
     # dev.setsockopt(bluez.SOL_HCI, bluez.HCI_FILTER, filter_saved)
+
+    # Stop scanning when we exit
+    r = dll.hci_le_set_scan_enable(
+        dev.fileno(),
+        0,            # enable = False
+        0,            # filter_dup
+        10000
+    )
 
 
 if __name__ == "__main__":
