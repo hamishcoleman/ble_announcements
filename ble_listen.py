@@ -42,7 +42,7 @@ class BTHome:
 
     def __str__(self):
         s = ["BTHome"]
-        for k,v in self.measurements.items():
+        for k, v in self.measurements.items():
             s += [k, str(v)]
 
         return " ".join(s)
@@ -159,11 +159,12 @@ class BLE_Tag_Base:
 
 
 class BLE_Tag_Flags(BLE_Tag_Base):
+    # Supplement to Core spec, Part A, 1.3
     def __init__(self, buf):
         super().__init__(buf)
         self.short = "F"
         self.desc = "Flags"
-        # rawdata is 1 byte bitmapped flags
+        # rawdata is n bytes bitmapped flags
 
 
 class BLE_Tag_UUID(BLE_Tag_Base):
@@ -208,7 +209,7 @@ class BLE_Tag_Service_Data(BLE_Tag_Base):
 
     @classmethod
     def from_buf(cls, buf):
-        id = buf[0]
+        # id = buf[0]
         uuid = int.from_bytes(buf[1:3], byteorder="big")
         id2cls = {
             0x95fe: MiBeacon,
@@ -264,8 +265,10 @@ class BLE_Tag:
         if len(buf) < 1:
             return None
 
+        # ad_type
         id = buf[0]
 
+        # Assigned Numbers, 2.3: Common Data Types
         id2cls = {
             0x01: BLE_Tag_Flags,
             0x02: BLE_Tag_UUID,
@@ -302,10 +305,11 @@ class Message:
 
 def handle_buf_inner2(msg, buf):
     """second layer wrapped message"""
-    # TODO: It probably has a type name
+    # Bluetooth spec, Vol 3, Part C, Section 11
     pos = 0
 
     while pos < len(buf):
+        # ad struct length
         obj_len = buf[pos]
         pos += 1
         obj_buf = buf[pos:pos + obj_len]
@@ -323,8 +327,11 @@ def handle_buf_inner1(buf):
     msg = Message()
 
     # TODO:
-    # - this is a LTV
-    # - how do we know it ends?
+    # flags:
+    #   subevent_code == 2
+    #   num_reports (1 through 0x19)
+    #   event_type[num_reports]
+
     flags = buf[pos:pos+3]
     pos += 3
     if flags not in [b'\x02\x01\x00', b'\x02\x01\x02',  b'\x02\x01\x03']:
@@ -332,26 +339,28 @@ def handle_buf_inner1(buf):
         raise ValueError(f"unexpected {flags} {pos} {buf}")
     # TODO: msg.flags0 = flags
 
-    # unknown
+    # address_type[num_reports]
     if buf[pos] not in [0, 1]:
         # TODO: be more resilient
         raise ValueError(f"unexpected {buf[pos]} {pos} {buf}")
     pos += 1
     # TODO: msg.?? =
 
-    # AdvA
+    # address[num_reports]
     msg.addr = MACAddr(buf[pos:pos+6][::-1])
     pos += 6
 
+    # data_length[num_reports]
     len2 = buf[pos]
     pos += 1
 
+    # data - repeated num_reports times, each one sized by data_length[]
     handle_buf_inner2(msg, buf[pos:pos + len2])
     pos += len2
 
     # TODO:
-    # always seems to be one more byte
-    # msg.?? = buf[pos]
+    # final byte
+    # RSSI[num_reports] (-127 thru +20, or 0x7f for None)
 
     return msg
 
@@ -367,9 +376,11 @@ def handle_buf(buf):
     if event != bluez.HCI_EVENT_PKT:
         raise ValueError("expected HCI_EVENT_PKT")
 
-    event_sub = buf[pos]
+    # Bluetooth Core Vol 4, Part E, 7.7.65.2 LE Advertising Report event
+    event_code = buf[pos]
     pos += 1
-    if event_sub != EVT_LE_META_EVENT:
+
+    if event_code != EVT_LE_META_EVENT:
         raise ValueError("expected EVT_LE_META_EVENT")
 
     # consistancy check.
