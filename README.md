@@ -18,3 +18,8 @@ If the bluetooth daemon is running, it can conflict with this script:
 If the bluetooth daemon is not running, the bluetooth adaptor may need to be
 started to allow bluetooth to work properly
 - hciconfig hci0 up
+
+## sending data to influx
+
+./bthome2influx.py --influxdsn influxdb://hostname:port --db example
+
