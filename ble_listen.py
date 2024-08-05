@@ -12,6 +12,7 @@ Listen for BLE advertisements and dump
 import argparse
 import bluetooth._bluetooth as bluez
 import ctypes
+import struct
 import sys
 import time
 
@@ -286,10 +287,12 @@ class BLE_Tag:
 class Message:
     def __init__(self):
         self.tags = []
+        self.rssi = None
 
     def __str__(self):
         s = []
         s += [f"{self.addr}"]
+        s += [f"rssi={self.rssi}"]
 
         if hasattr(self, "buf"):
             s += [f"{self.buf}"]
@@ -361,6 +364,7 @@ def handle_buf_inner1(buf):
     # TODO:
     # final byte
     # RSSI[num_reports] (-127 thru +20, or 0x7f for None)
+    msg.rssi = struct.unpack("b", buf[pos:pos + 1])[0]
 
     return msg
 
