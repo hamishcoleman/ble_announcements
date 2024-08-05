@@ -436,6 +436,11 @@ def main():
             10000         # to
         )
 
+    # TODO:
+    # - find a way to get scan enable
+    # - dont set it if it is already set
+    # - restore the state on exit
+
     r = dll.hci_le_set_scan_enable(
         dev.fileno(),
         1,            # enable = True
@@ -444,7 +449,10 @@ def main():
     )
     if r != 0:
         # probably eperm
-        raise ValueError(f"le set scan enable returned {r}")
+        # might be "alreacy scanning"
+        # TODO:
+        # - get errno and react differently depending on reason
+        print(f"WARNING: le set scan enable returned {r}")
 
     # Maybe:
     # systemctl stop bluetooth
@@ -465,18 +473,21 @@ def main():
             print(now, handle_buf(buf))
             sys.stdout.flush()
     except KeyboardInterrupt:
+        pass
+
         # If saved, restore
         # dev.setsockopt(bluez.SOL_HCI, bluez.HCI_FILTER, filter_saved)
 
+        # This will affect any other scanning tool, so dont do it
         # Stop scanning when we exit
         # (some devices will return "busy" errors if scanning is enabled
         # when we ask them to enable scanning)
-        r = dll.hci_le_set_scan_enable(
-            dev.fileno(),
-            0,            # enable = False
-            0,            # filter_dup
-            10000
-        )
+        # r = dll.hci_le_set_scan_enable(
+        #     dev.fileno(),
+        #     0,            # enable = False
+        #     0,            # filter_dup
+        #     10000
+        # )
 
 
 if __name__ == "__main__":
