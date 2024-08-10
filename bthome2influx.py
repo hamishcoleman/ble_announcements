@@ -281,6 +281,31 @@ def handle_buf(buf):
     return msg
 
 
+def ble_open(name):
+    devid = bluez.hci_devid(name)
+    assert devid >= 0
+
+    dev = bluez.hci_open_dev(devid)
+    return dev
+
+
+def ble_scan_enable(dev):
+    dll = ctypes.CDLL("libbluetooth.so.3")
+
+    r = dll.hci_le_set_scan_enable(
+        dev.fileno(),
+        1,            # enable = True
+        0,            # filter_dup
+        10000
+    )
+    if r != 0:
+        # probably eperm
+        # might be "alreacy scanning"
+        # TODO:
+        # - get scane enable and check before set
+        print(f"WARNING: le set scan enable returned {r}")
+
+
 def argparser():
     args = argparse.ArgumentParser(
         description=__doc__,
@@ -320,25 +345,8 @@ def argparser():
 def main():
     args = argparser()
 
-    devid = bluez.hci_devid(args.interface)
-    assert devid >= 0
-
-    dev = bluez.hci_open_dev(devid)
-
-    dll = ctypes.CDLL("libbluetooth.so.3")
-
-    r = dll.hci_le_set_scan_enable(
-        dev.fileno(),
-        1,            # enable = True
-        0,            # filter_dup
-        10000
-    )
-    if r != 0:
-        # probably eperm
-        # might be "alreacy scanning"
-        # TODO:
-        # - get scane enable and check before set
-        print(f"WARNING: le set scan enable returned {r}")
+    dev = ble_open(args.interface)
+    ble_scan_enable(dev)
 
     if args.influxdsn is None:
         db = None
