@@ -413,16 +413,7 @@ def main():
     except KeyboardInterrupt:
         # If saved, restore
         # dev.setsockopt(bluez.SOL_HCI, bluez.HCI_FILTER, filter_saved)
-
-        # Stop scanning when we exit
-        # (some devices will return "busy" errors if scanning is enabled
-        # when we ask them to enable scanning)
-        r = dll.hci_le_set_scan_enable(
-            dev.fileno(),
-            0,            # enable = False
-            0,            # filter_dup
-            10000
-        )
+        pass
 
 
 if __name__ == "__main__":
