@@ -312,26 +312,28 @@ def argparser():
     )
 
     args.add_argument(
+        "--config",
+        action="append",
+        help="File(s) or dir(s) to load config settings from",
+    )
+
+    args.add_argument(
         "--interface",
-        default="hci0",
         help="Bluetooth interface name",
     )
 
     args.add_argument(
         "--influxdsn",
-        default=None,
         help="Influxdb connection string",
     )
 
     args.add_argument(
         "--db",
-        default=None,
         help="Influxdb database name",
     )
 
     args.add_argument(
         "--verbose",
-        default=False,
         action="store_true",
         help="Set verbose output",
     )
@@ -342,16 +344,46 @@ def argparser():
     return r
 
 
+def config_load(args):
+    config = {}
+
+    # First, load the defaults
+    config["influx"] = {
+        "dsn": None,
+        "db": None,
+    }
+    config["interface"] = "hci0"
+    config["verbose"] = False
+
+    if args.config:
+        # TODO: merge the config
+        raise NotImplementedError
+
+    # Finally, overwrite with any CLI settings
+    # TODO: if any more CLI args arrive, this will get unwieldy
+    if args.influxdsn:
+        config["influx"]["dsn"] = args.influxdsn
+    if args.db:
+        config["influx"]["db"] = args.db
+    if args.interface:
+        config["interface"] = args.interface
+    if args.verbose:
+        config["verbose"] = args.verbose
+
+    return config
+
+
 def main():
     args = argparser()
+    config = config_load(args)
 
-    dev = ble_open(args.interface)
+    dev = ble_open(config["interface"])
     ble_scan_enable(dev)
 
-    if args.influxdsn is None:
+    if config["influx"]["dsn"] is None:
         db = None
     else:
-        db = influxdb.InfluxDBClient.from_dsn(args.influxdsn)
+        db = influxdb.InfluxDBClient.from_dsn(config["influx"]["dsn"])
 
     # Maybe save old filter?
     # filter_saved = dev.getsockopt(bluez.SOL_HCI, bluez.HCI_FILTER, 14)
@@ -401,7 +433,7 @@ def main():
             if line is None:
                 continue
 
-            if args.verbose:
+            if config["verbose"]:
                 print(line)
                 sys.stdout.flush()
 
@@ -412,7 +444,7 @@ def main():
                         # FIXME:
                         # - why does the DSN database name not work?
                         # - also why not switch_database?
-                        "db": args.db,
+                        "db": config["influx"]["db"],
                         "precision": "s",
                     },
                     protocol="line"
