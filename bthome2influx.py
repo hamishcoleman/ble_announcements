@@ -335,12 +335,14 @@ def argparser():
     args.add_argument(
         "--verbose",
         action="store_true",
+        default=None,
         help="Set verbose output",
     )
 
     args.add_argument(
         "--debug",
         action="store_true",
+        default=None,
         help="Dump some interal information",
     )
 
@@ -382,7 +384,7 @@ def dict_merge(a, b):
 def config_merge(config, filename):
     """Load a config file into the existing config"""
 
-    if config["verbose"]:
+    if config["debug"]:
         print(f"Loading config file {filename}")
 
     fh = open(filename, "r")
@@ -433,7 +435,7 @@ def config_init(args):
 
     # This is set early here to let the loader use the verbose flag and
     # again later to allow CLI to override any config file loaded
-    config["verbose"] = args.verbose
+    config["debug"] = args.debug
 
     config_files = []
     if args.config:
