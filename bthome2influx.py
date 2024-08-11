@@ -16,6 +16,7 @@ import bluetooth._bluetooth as bluez
 import ctypes
 import influxdb
 import os
+import requests
 import struct
 import sys
 import time
@@ -532,7 +533,10 @@ def main():
                 print(line)
                 sys.stdout.flush()
 
-            if db is not None:
+            if db is None:
+                continue
+
+            try:
                 db.write(
                     line,
                     params={
@@ -544,6 +548,9 @@ def main():
                     },
                     protocol="line"
                 )
+            except requests.exceptions.ConnectionError as e:
+                print(e)
+                continue
 
     except KeyboardInterrupt:
         # If saved, restore
