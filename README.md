@@ -21,5 +21,15 @@ started to allow bluetooth to work properly
 
 ## sending data to influx
 
-./bthome2influx.py --influxdsn influxdb://hostname:port --db example
+Simple:
 
+```
+./bthome2influx.py --influxdsn influxdb://hostname:port --db example
+```
+
+With config:
+```
+./bthome2influx.py --config mysite.conf
+```
+
+See [example config file](bthome2influx.example.conf)
