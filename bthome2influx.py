@@ -7,6 +7,7 @@ Listen for BTHome structured BLE advertisements and send them to influx
 #   dpkg:
 #     - python3-bluez
 #     - python3-influxdb
+#     - python3-yaml
 # ...
 #
 
@@ -14,9 +15,11 @@ import argparse
 import bluetooth._bluetooth as bluez
 import ctypes
 import influxdb
+import os
 import struct
 import sys
 import time
+import yaml
 
 
 EVT_LE_META_EVENT = 0x3e
@@ -189,10 +192,10 @@ class BLE_Tag:
 
 class Message:
     def __init__(self):
-        self.tags = []
         self.timestamp = None
         self.bthome = None
         self.rssi = None
+        self.tags = {}
 
     def __str__(self):
         s = []
@@ -200,17 +203,14 @@ class Message:
         s += [f"{self.addr}"]
         s += [f"{self.bthome}"]
 
-        for tag in self.tags:
-            s += [f"{tag}"]
-
         return " ".join(s)
 
     def to_influxline(self):
         if self.bthome is None:
             return None
 
-        keys = f"node={self.addr}"
-        # TODO: if there was a Name tag, could add it to keys
+        # TODO: if there was a Name tag, could add it to tags
+        tag_set = ",".join(["=".join(i) for i in self.tags.items()])
 
         values = {}
         values['rssi'] = str(self.rssi)
@@ -218,13 +218,12 @@ class Message:
             values[k] = str(v)
         values = ",".join(["=".join(i) for i in values.items()])
 
-        return f"bthome,{keys} {values} {self.timestamp}"
+        return f"bthome,{tag_set} {values} {self.timestamp}"
 
     def add_tag(self, tag):
         if isinstance(tag, BTHome):
             self.bthome = tag
-        else:
-            self.tags.append(tag)
+        # TODO: could record name if it occurs
 
 
 def handle_buf_inner1(msg, buf):
@@ -276,6 +275,7 @@ def handle_buf(buf):
 
     msg = Message()
     msg.addr = MACAddr(addr[::-1])
+    msg.tags["node"] = str(msg.addr)
     msg.rssi = rssi
     handle_buf_inner1(msg, buf1)
     return msg
@@ -338,36 +338,122 @@ def argparser():
         help="Set verbose output",
     )
 
+    args.add_argument(
+        "--debug",
+        action="store_true",
+        help="Dump some interal information",
+    )
+
     # authentication
 
     r = args.parse_args()
     return r
 
 
-def config_load(args):
-    config = {}
+def dict_merge(a, b):
+    """Non destructively merge dict b into a"""
+    for k, v in b.items():
+        # trivial case: Doesnt exist in original, add it
+        if k not in a:
+            a[k] = v
+            continue
+
+        # Append new list items
+        if isinstance(v, list):
+            if isinstance(a[k], list):
+                a[k] += v
+                continue
+            # Promote the old value to a list
+            a[k] = [a[k]] + v
+            continue
+
+        # Recursively merge dicts
+        if isinstance(v, dict):
+            if isinstance(a[k], dict):
+                dict_merge(a[k], v)
+                continue
+            # Dunno, could overwrite, but probably best to throw
+            raise ValueError(f"Could not merge dict with non dict for {k}")
+
+        # All others, simply overwrite
+        a[k] = v
+
+
+def config_merge(config, filename):
+    """Load a config file into the existing config"""
+
+    if config["verbose"]:
+        print(f"Loading config file {filename}")
+
+    fh = open(filename, "r")
+    docs = yaml.safe_load_all(fh)
+
+    for data in docs:
+        if data is None:
+            continue
+        if not isinstance(data, dict):
+            raise ValueError(f"Unexpected yaml data: {data}")
+
+        dict_merge(config, data)
+
+
+def config_name_resolve(name):
+    """Convert directories into a list of config files"""
+
+    if not os.path.isdir(name):
+        return [name]
+
+    names = []
+    for entry in os.scandir(name):
+        # Only process conf files
+        if not entry.name.endswith(".conf"):
+            continue
+        # Dont recurse
+        if entry.is_dir():
+            continue
+
+        names.append(entry.path)
+
+    return names
+
+
+def config_init(args):
+    """Set the config defaults, load any conf files and merge the CLI args"""
 
     # First, load the defaults
-    config["influx"] = {
-        "dsn": None,
-        "db": None,
+    config = {
+        "influx": {
+            "dsn": None,
+            "db": None,
+        },
+        "interface": "hci0",
+        "nodes": {},
+        "tags": {},
     }
-    config["interface"] = "hci0"
-    config["verbose"] = False
 
+    # This is set early here to let the loader use the verbose flag and
+    # again later to allow CLI to override any config file loaded
+    config["verbose"] = args.verbose
+
+    config_files = []
     if args.config:
-        # TODO: merge the config
-        raise NotImplementedError
+        for name in args.config:
+            config_files.extend(config_name_resolve(name))
+
+    for filename in config_files:
+        config_merge(config, filename)
 
     # Finally, overwrite with any CLI settings
     # TODO: if any more CLI args arrive, this will get unwieldy
+    if args.debug is not None:
+        config["debug"] = args.debug
     if args.influxdsn:
         config["influx"]["dsn"] = args.influxdsn
     if args.db:
         config["influx"]["db"] = args.db
     if args.interface:
         config["interface"] = args.interface
-    if args.verbose:
+    if args.verbose is not None:
         config["verbose"] = args.verbose
 
     return config
@@ -375,7 +461,10 @@ def config_load(args):
 
 def main():
     args = argparser()
-    config = config_load(args)
+    config = config_init(args)
+    if config["debug"]:
+        print(yaml.safe_dump(config, default_flow_style=False))
+    # TODO: It would be great to apply a schema to config
 
     dev = ble_open(config["interface"])
     ble_scan_enable(dev)
@@ -412,8 +501,6 @@ def main():
                 print(buf.hex())
                 continue
 
-            msg.timestamp = now
-
             if msg is None:
                 continue
             if msg.bthome is None:
@@ -427,6 +514,12 @@ def main():
                 prev_seq[msg.addr.addr] = sequence
             except KeyError:
                 pass
+
+            msg.timestamp = now
+            msg.tags.update(config["tags"])
+            addr = str(msg.addr)
+            if addr in config["nodes"]:
+                msg.tags.update(config["nodes"][addr])
 
             # send to influx ...
             line = msg.to_influxline()
