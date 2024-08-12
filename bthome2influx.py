@@ -522,6 +522,8 @@ def main():
             msg.tags.update(config["tags"])
             addr = str(msg.addr)
             if addr in config["nodes"]:
+                if config["nodes"][addr].get("skip_node", False):
+                    continue
                 msg.tags.update(config["nodes"][addr])
 
             # send to influx ...
