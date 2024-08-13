@@ -325,7 +325,7 @@ def argparser():
 
     args.add_argument(
         "--influxdsn",
-        help="Influxdb connection string",
+        help="Influxdb connection string (Note: not a URL)",
     )
 
     args.add_argument(
@@ -426,7 +426,9 @@ def config_init(args):
     # First, load the defaults
     config = {
         "influx": {
-            "dsn": None,
+            "options": {
+                "verify_ssl": True,     # Why is this not the default?
+            },
             "db": None,
         },
         "interface": "hci0",
@@ -472,10 +474,19 @@ def main():
     dev = ble_open(config["interface"])
     ble_scan_enable(dev)
 
-    if config["influx"]["dsn"] is None:
-        db = None
+    connection_options = config["influx"]["options"]
+
+    if "dsn" in config["influx"]:
+        db = influxdb.InfluxDBClient.from_dsn(
+            config["influx"]["dsn"],
+            **connection_options
+        )
+    elif "host" in connection_options:
+        db = influxdb.InfluxDBClient(**connection_options)
     else:
-        db = influxdb.InfluxDBClient.from_dsn(config["influx"]["dsn"])
+        # If --verbose is set, stdout gets the line data, even when the
+        # db is None
+        db = None
 
     # Maybe save old filter?
     # filter_saved = dev.getsockopt(bluez.SOL_HCI, bluez.HCI_FILTER, 14)
