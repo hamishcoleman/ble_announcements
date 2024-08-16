@@ -561,7 +561,10 @@ def main():
                     },
                     protocol="line"
                 )
-            except requests.exceptions.ConnectionError as e:
+            except (
+                        requests.exceptions.ConnectionError,
+                        influxdb.exceptions.InfluxDBServerError,
+                    ) as e:
                 print(e)
                 continue
 
