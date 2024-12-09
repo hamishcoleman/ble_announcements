@@ -1,0 +1,15 @@
+[Unit]
+Description=Listen for BTHome BLE Advertisements
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/bthome2influx.py --verbose
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/tmp/bthome2influx.log
+
+[Install]
+WantedBy=multi-user.target
+Alias=
