@@ -247,6 +247,8 @@ def handle_buf(buf):
     # TODO:
     # - accumulate metrics for unexpected events
 
+    fmt0 = "BBBB3B6sB"
+    len0 = struct.calcsize(fmt0)
     (
         event1,
         event_code,
@@ -257,9 +259,17 @@ def handle_buf(buf):
         address_type,
         addr,
         len2
-    ) = struct.unpack("BBBB3B6sB", buf[0:14])
-    buf1 = buf[14:14 + len2]
-    rssi = struct.unpack("b", buf[14 + len2:14 + len2 + 1])[0]
+    ) = struct.unpack(fmt0, buf[0:len0])
+    len3 = len0 + len2
+    buf1 = buf[len0:len3]
+
+    if len(buf) == len3 + 1:
+        rssi = struct.unpack("b", buf[len3:len3 + 1])[0]
+    else:
+        # TODO: I thought that the buffer was /always/ followed by a rssi
+        # byte.  Check if it is allowed to be optional and raise an error on
+        # unexpected conditions.
+        rssi = None
 
     if event1 != bluez.HCI_EVENT_PKT:
         return None
@@ -270,9 +280,8 @@ def handle_buf(buf):
 
     if subevent_code != 2:
         return None
-    # if num_reports != 1:
-    #    report error, unhandled case
-    #    return None
+    if num_reports != 1:
+        raise ValueError("Cannot handle num_reports != 1")
 
     msg = Message()
     msg.addr = MACAddr(addr[::-1])
