@@ -102,6 +102,11 @@ class BTHome:
                     "size": 1,
                     "type": "?",
                 },
+                0x11: {
+                    "name": "opening",
+                    "size": 1,
+                    "type": "?",
+                },
             }
 
             if obj_id not in data_types:
