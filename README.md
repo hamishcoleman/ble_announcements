@@ -33,3 +33,20 @@ With config:
 ```
 
 See [example config file](bthome2influx.example.conf)
+
+## Compatible hardware
+
+### Xiaomi Mijia
+
+This software should work with any device sending bthome announcements, but
+was originally written with the
+[Xiaomi Mijia](https://pvvx.github.io/ATC_MiThermometer/) as the test hardware.
+
+Devices with newer firmware from the factory may need an alternate method to
+perform the OTA firmware flash:
+
+- Download the [latest bthome firmware](https://github.com/pvvx/ATC_MiThermometer/tree/master/bin)
+- Use the atc1441 flasher page https://atc1441.github.io/TelinkFlasher.html
+
+If all else fails, it is also possible to disassemble the device and use a
+serial firmware flash tool.
