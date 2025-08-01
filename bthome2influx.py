@@ -526,7 +526,7 @@ def main():
                 msg = handle_buf(buf)
             except ValueError as e:
                 print(e)
-                print(buf.hex())
+                print("Buffer:", buf.hex())
                 continue
 
             if msg is None:
