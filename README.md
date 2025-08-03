@@ -36,10 +36,12 @@ See [example config file](bthome2influx.example.conf)
 
 ## Compatible hardware
 
+This software should work with any device sending bthome announcements.
+Specific information about hardware will be added heere as it becomes known.
+
 ### Xiaomi Mijia
 
-This software should work with any device sending bthome announcements, but
-was originally written with the
+This software was originally written with the
 [Xiaomi Mijia](https://pvvx.github.io/ATC_MiThermometer/) as the test hardware.
 
 Devices with newer firmware from the factory may need an alternate method to
