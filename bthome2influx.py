@@ -487,6 +487,8 @@ def config_init(args):
         config["interface"] = args.interface
     if args.verbose is not None:
         config["verbose"] = args.verbose
+    else:
+        config["verbose"] = False
 
     return config
 
