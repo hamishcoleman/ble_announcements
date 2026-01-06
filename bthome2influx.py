@@ -38,6 +38,8 @@ class MACAddr:
 
 
 class BTHome:
+    debug = False
+
     @classmethod
     def from_buf(cls, buf):
         return cls(buf)
@@ -46,6 +48,9 @@ class BTHome:
         self.info = buf[0]
         self.measurements = {}
         self._parse_measurements(buf[1:])
+
+        if self.debug:
+            print("DEBUG:", str(self))
 
     def __str__(self):
         s = ["BTHome"]
@@ -113,6 +118,9 @@ class BTHome:
                     "type": "<L",
                 },
             }
+
+            if self.debug:
+                print("DEBUG: obj_id=", obj_id, "pos=", pos)
 
             if obj_id not in data_types:
                 # TODO: be more resilient in the face of unknown
@@ -488,6 +496,7 @@ def main():
     config = config_init(args)
     if config["debug"]:
         print(yaml.safe_dump(config, default_flow_style=False))
+        BTHome.debug = True
     # TODO: It would be great to apply a schema to config
 
     dev = ble_open(config["interface"])
