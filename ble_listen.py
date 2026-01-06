@@ -99,6 +99,11 @@ class BTHome:
                     "size": 1,
                     "type": "?",
                 },
+                0x3e: {
+                    "name": "count",
+                    "size": 4,
+                    "type": "<l",
+                },
             }
 
             if obj_id not in data_types:
