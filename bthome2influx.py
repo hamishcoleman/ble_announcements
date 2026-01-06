@@ -310,6 +310,10 @@ def handle_buf(buf):
 
 
 def ble_open(name):
+    # TODO:
+    # rfkill unblock $n
+    # hcitool $name up
+
     devid = bluez.hci_devid(name)
     assert devid >= 0
 
