@@ -462,7 +462,7 @@ def config_init(args):
             "db": None,
         },
         "interface": "hci0",
-        "nodes": {},
+        "ble": {},
         "tags": {},
     }
 
@@ -492,6 +492,11 @@ def config_init(args):
         config["verbose"] = args.verbose
     else:
         config["verbose"] = False
+
+    # Backwards support
+    if "ble" not in config and "nodes" in config:
+        print("Warning: old config for BLE nodes detected")
+        config["ble"] = config["nodes"]
 
     return config
 
@@ -554,10 +559,10 @@ def main():
             msg.timestamp = now
             msg.tags.update(config["tags"])
             addr = str(msg.addr)
-            if addr in config["nodes"]:
-                if config["nodes"][addr].get("skip_node", False):
+            if addr in config["ble"]:
+                if config["ble"][addr].get("skip_node", False):
                     continue
-                msg.tags.update(config["nodes"][addr])
+                msg.tags.update(config["ble"][addr])
 
             if msg.bthome is None:
                 continue
