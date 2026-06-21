@@ -303,7 +303,6 @@ def handle_buf(buf):
 
     msg = Message()
     msg.addr = MACAddr(addr[::-1])
-    msg.tags["node"] = str(msg.addr)
     msg.rssi = rssi
     handle_buf_inner1(msg, buf1)
     return msg
@@ -570,6 +569,10 @@ def main():
                 if config["nodes"][addr].get("skip_node", False):
                     continue
                 msg.tags.update(config["nodes"][addr])
+
+            # The data schema for influx needs a per-node tag to show
+            # different sources
+            msg.tags["node"] = str(msg.addr)
 
             # send to influx ...
             line = msg.to_influxline()
