@@ -550,6 +550,15 @@ def main():
 
             if msg is None:
                 continue
+
+            msg.timestamp = now
+            msg.tags.update(config["tags"])
+            addr = str(msg.addr)
+            if addr in config["nodes"]:
+                if config["nodes"][addr].get("skip_node", False):
+                    continue
+                msg.tags.update(config["nodes"][addr])
+
             if msg.bthome is None:
                 continue
 
@@ -562,13 +571,6 @@ def main():
             except KeyError:
                 pass
 
-            msg.timestamp = now
-            msg.tags.update(config["tags"])
-            addr = str(msg.addr)
-            if addr in config["nodes"]:
-                if config["nodes"][addr].get("skip_node", False):
-                    continue
-                msg.tags.update(config["nodes"][addr])
 
             # The data schema for influx needs a per-node tag to show
             # different sources
