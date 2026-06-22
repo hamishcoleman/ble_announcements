@@ -108,13 +108,6 @@ def handle_buf(buf):
     return msg
 
 
-
-
-
-
-
-
-
 def argparser():
     args = argparse.ArgumentParser(
         description=__doc__,
@@ -227,7 +220,6 @@ def main():
         # db is None
         db = None
 
-
     hc.ble.set_filter(dev)
 
     prev_seq = {}
@@ -266,7 +258,6 @@ def main():
                 prev_seq[msg.addr.addr] = sequence
             except KeyError:
                 pass
-
 
             # The data schema for influx needs a per-node tag to show
             # different sources
