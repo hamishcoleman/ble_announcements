@@ -12,7 +12,6 @@ Listen for BTHome structured BLE advertisements and send them to influx
 #
 
 import argparse
-import bluetooth._bluetooth as bluez
 import influxdb
 import os
 import requests
@@ -273,46 +272,12 @@ def handle_buf(buf):
     # TODO:
     # - accumulate metrics for unexpected events
 
-    fmt0 = "BBBB3B6sB"
-    len0 = struct.calcsize(fmt0)
-    (
-        event1,
-        event_code,
-        len1,
-        subevent_code,
-        num_reports,
-        event_type,
-        address_type,
-        addr,
-        len2
-    ) = struct.unpack(fmt0, buf[0:len0])
-    len3 = len0 + len2
-    buf1 = buf[len0:len3]
-
-    if len(buf) == len3 + 1:
-        rssi = struct.unpack("b", buf[len3:len3 + 1])[0]
-    else:
-        # TODO: I thought that the buffer was /always/ followed by a rssi
-        # byte.  Check if it is allowed to be optional and raise an error on
-        # unexpected conditions.
-        rssi = None
-
-    if event1 != bluez.HCI_EVENT_PKT:
-        return None
-    if event_code != hc.ble.EVT_LE_META_EVENT:
-        return None
-    # if len1 != len(buf1) + size of decoded fields:
-    #     return None
-
-    if subevent_code != 2:
-        return None
-    if num_reports != 1:
-        raise ValueError("Cannot handle num_reports != 1")
+    hci = hc.ble.HCI_Packet.from_bytes(buf)
 
     msg = Message()
-    msg.addr = MACAddr(addr[::-1])
-    msg.rssi = rssi
-    handle_buf_inner1(msg, buf1)
+    msg.addr = MACAddr(hci.addr[::-1])
+    msg.rssi = hci.rssi
+    handle_buf_inner1(msg, hci.remainder)
     return msg
 
 
