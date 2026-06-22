@@ -77,6 +77,212 @@ def set_filter(dev):
     #   (No errors registered)
 
 
+class BTHome:
+    debug = False
+
+    @classmethod
+    def from_buf(cls, buf):
+        return cls(buf)
+
+    def __init__(self, buf):
+        self.info = buf[0]
+        self.measurements = {}
+        self._parse_measurements(buf[1:])
+
+        if self.debug:
+            print("DEBUG:", str(self))
+
+    def __str__(self):
+        s = ["BTHome"]
+        for k, v in self.measurements.items():
+            s += [k, str(v)]
+
+        return " ".join(s)
+
+    def _parse_measurements(self, buf):
+        pos = 0
+        while pos < len(buf):
+            obj_id = buf[pos]
+            pos += 1
+
+            # TODO:
+            # - this could return objects
+            # - the size could be calculated from the struct type string
+
+            data_types = {
+                0: {
+                    "name": "sequence",
+                    "size": 1,
+                    "type": "B",
+                },
+                1: {
+                    "name": "battery",
+                    "size": 1,
+                    "type": "B",
+                    "unit": "%",
+                },
+                2: {
+                    "name": "temperature",
+                    "size": 2,
+                    "type": "<h",
+                    "factor": 0.01,
+                    "unit": "°C",
+                },
+                3: {
+                    "name": "humidity",
+                    "size": 2,
+                    "type": "<H",
+                    "factor": 0.01,
+                    "unit": "%",
+                },
+                0x0c: {
+                    "name": "voltage",
+                    "size": 2,
+                    "type": "<H",
+                    "factor": 0.001,
+                    "unit": "V",
+                },
+                0x10: {
+                    "name": "power",
+                    "size": 1,
+                    "type": "?",
+                },
+                0x11: {
+                    "name": "opening",
+                    "size": 1,
+                    "type": "?",
+                },
+                0x3e: {
+                    "name": "count",
+                    "size": 4,
+                    "type": "<L",
+                },
+            }
+
+            if self.debug:
+                print("DEBUG: obj_id=", obj_id, "pos=", pos)
+
+            if obj_id not in data_types:
+                # TODO: be more resilient in the face of unknown
+                raise ValueError(f"Unknown BTHome measurement {obj_id}")
+
+            type = data_types[obj_id]
+            size = type["size"]
+            rawdata = buf[pos:pos + size]
+            pos += size
+
+            raw, = struct.unpack(type["type"], rawdata)
+
+            if "factor" in type:
+                value = raw * type["factor"]
+            else:
+                value = raw
+
+            self.measurements[type["name"]] = value
+
+
+class BLE_Tag_Base:
+    def __init__(self, buf):
+        self.id = buf[0]
+        self.rawdata = buf[1:]
+        self.short = str(self.id)
+        self.desc = "Unknown"
+
+    def _str_data(self):
+        return self.rawdata.hex()
+
+    def __str__(self):
+        return f"{self.short}={self._str_data()}"
+
+    @classmethod
+    def from_buf(cls, buf):
+        return cls(buf)
+
+
+class BLE_Tag_Name(BLE_Tag_Base):
+    def __init__(self, buf):
+        super().__init__(buf)
+        self.short = "N"
+        self.desc = "Complete Local Name"
+
+    def _str_data(self):
+        return self.rawdata.decode("utf8")
+
+
+class BLE_Tag_Service_Data(BLE_Tag_Base):
+    def __init__(self, buf):
+        super().__init__(buf)
+        self.short = "S"
+        self.desc = "Service"
+        self.uuid = int.from_bytes(self.rawdata[0:2], byteorder="big")
+        self.rawdata = self.rawdata[2:]
+
+    def _str_data(self):
+        return f"{self.uuid:04x}:{self.rawdata.hex()}"
+
+    @classmethod
+    def from_buf(cls, buf):
+        # id = buf[0]
+        uuid = int.from_bytes(buf[1:3], byteorder="big")
+        id2cls = {
+            0xd2fc: BTHome,
+        }
+        if uuid in id2cls:
+            return id2cls[uuid].from_buf(buf[3:])
+        return cls(buf)
+
+
+class BLE_Tag:
+    @classmethod
+    def from_buf(cls, buf):
+        """Extract the id and create an object of the correct class"""
+        if len(buf) < 1:
+            return None
+        id = buf[0]
+
+        id2cls = {
+            0x09: BLE_Tag_Name,
+            0x16: BLE_Tag_Service_Data,
+        }
+        cls = id2cls.get(id, BLE_Tag_Base)
+
+        return cls.from_buf(buf)
+
+
+def test_BLE_Tag():
+    import pytest
+
+    # Unspecific tag
+    data = b"\x01\x02\x03"
+    tag = BLE_Tag.from_buf(data)
+    assert str(tag) == "1=0203"
+
+    # Name tag
+    data = b"\x09test_name"
+    tag = BLE_Tag.from_buf(data)
+    assert str(tag) == "N=test_name"
+
+    # Generic service tag
+    data = b"\x16\x01\x02\x03"
+    tag = BLE_Tag.from_buf(data)
+    assert str(tag) == "S=0102:03"
+    assert tag.rawdata == b"\x03"
+
+    # BTHome service tag with unknown measurement
+    data = b"\x16\xd2\xfc\x00\x5a\x11"
+    with pytest.raises(ValueError):
+        BLE_Tag.from_buf(data)
+
+    # BTHome service tag
+    data = b"\x16\xd2\xfc\x00\x00\x11\x01\x40"
+    tag = BLE_Tag.from_buf(data)
+    assert str(tag) == "BTHome sequence 17 battery 64"
+    assert tag.measurements == {
+        "sequence": 17,
+        "battery": 64,
+    }
+
+
 class HCI_Packet:
     # https://www.bluetooth.com/wp-content/uploads/Files/Specification/HTML/Core-54/out/en/host-controller-interface/uart-transport-layer.html
     # 2. Protocol

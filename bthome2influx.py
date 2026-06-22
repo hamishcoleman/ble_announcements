@@ -15,7 +15,6 @@ import argparse
 import influxdb
 import os
 import requests
-import struct
 import sys
 import time
 import yaml
@@ -42,178 +41,6 @@ class MACAddr:
         for b in self.addr:
             a.append(f"{b:02x}")
         return ":".join(a)
-
-
-class BTHome:
-    debug = False
-
-    @classmethod
-    def from_buf(cls, buf):
-        return cls(buf)
-
-    def __init__(self, buf):
-        self.info = buf[0]
-        self.measurements = {}
-        self._parse_measurements(buf[1:])
-
-        if self.debug:
-            print("DEBUG:", str(self))
-
-    def __str__(self):
-        s = ["BTHome"]
-        for k, v in self.measurements.items():
-            s += [k, str(v)]
-
-        return " ".join(s)
-
-    def _parse_measurements(self, buf):
-        pos = 0
-        while pos < len(buf):
-            obj_id = buf[pos]
-            pos += 1
-
-            # TODO:
-            # - this could return objects
-            # - the size could be calculated from the struct type string
-
-            data_types = {
-                0: {
-                    "name": "sequence",
-                    "size": 1,
-                    "type": "B",
-                },
-                1: {
-                    "name": "battery",
-                    "size": 1,
-                    "type": "B",
-                    "unit": "%",
-                },
-                2: {
-                    "name": "temperature",
-                    "size": 2,
-                    "type": "<h",
-                    "factor": 0.01,
-                    "unit": "°C",
-                },
-                3: {
-                    "name": "humidity",
-                    "size": 2,
-                    "type": "<H",
-                    "factor": 0.01,
-                    "unit": "%",
-                },
-                0x0c: {
-                    "name": "voltage",
-                    "size": 2,
-                    "type": "<H",
-                    "factor": 0.001,
-                    "unit": "V",
-                },
-                0x10: {
-                    "name": "power",
-                    "size": 1,
-                    "type": "?",
-                },
-                0x11: {
-                    "name": "opening",
-                    "size": 1,
-                    "type": "?",
-                },
-                0x3e: {
-                    "name": "count",
-                    "size": 4,
-                    "type": "<L",
-                },
-            }
-
-            if self.debug:
-                print("DEBUG: obj_id=", obj_id, "pos=", pos)
-
-            if obj_id not in data_types:
-                # TODO: be more resilient in the face of unknown
-                raise ValueError(f"Unknown BTHome measurement {obj_id}")
-
-            type = data_types[obj_id]
-            size = type["size"]
-            rawdata = buf[pos:pos + size]
-            pos += size
-
-            raw, = struct.unpack(type["type"], rawdata)
-
-            if "factor" in type:
-                value = raw * type["factor"]
-            else:
-                value = raw
-
-            self.measurements[type["name"]] = value
-
-
-class BLE_Tag_Base:
-    def __init__(self, buf):
-        self.id = buf[0]
-        self.rawdata = buf[1:]
-        self.short = str(self.id)
-        self.desc = "Unknown"
-
-    def _str_data(self):
-        return self.rawdata.hex()
-
-    def __str__(self):
-        return f"{self.short}={self._str_data()}"
-
-    @classmethod
-    def from_buf(cls, buf):
-        return cls(buf)
-
-
-class BLE_Tag_Name(BLE_Tag_Base):
-    def __init__(self, buf):
-        super().__init__(buf)
-        self.short = "N"
-        self.desc = "Complete Local Name"
-
-    def _str_data(self):
-        return self.rawdata.decode("utf8")
-
-
-class BLE_Tag_Service_Data(BLE_Tag_Base):
-    def __init__(self, buf):
-        super().__init__(buf)
-        self.short = "S"
-        self.desc = "Service"
-        self.uuid = int.from_bytes(self.rawdata[0:2], byteorder="big")
-        self.rawdata = self.rawdata[2:]
-
-    def _str_data(self):
-        return f"{self.uuid:04x}:{self.rawdata.hex()}"
-
-    @classmethod
-    def from_buf(cls, buf):
-        # id = buf[0]
-        uuid = int.from_bytes(buf[1:3], byteorder="big")
-        id2cls = {
-            0xd2fc: BTHome,
-        }
-        if uuid in id2cls:
-            return id2cls[uuid].from_buf(buf[3:])
-        return cls(buf)
-
-
-class BLE_Tag:
-    @classmethod
-    def from_buf(cls, buf):
-        """Extract the id and create an object of the correct class"""
-        if len(buf) < 1:
-            return None
-        id = buf[0]
-
-        id2cls = {
-            0x09: BLE_Tag_Name,
-            0x16: BLE_Tag_Service_Data,
-        }
-        cls = id2cls.get(id, BLE_Tag_Base)
-
-        return cls.from_buf(buf)
 
 
 class Message:
@@ -247,7 +74,7 @@ class Message:
         return f"bthome,{tag_set} {values} {self.timestamp}"
 
     def add_tag(self, tag):
-        if isinstance(tag, BTHome):
+        if isinstance(tag, hc.ble.BTHome):
             self.bthome = tag
         # TODO: could record name if it occurs
 
@@ -263,7 +90,7 @@ def handle_buf_inner1(msg, buf):
         obj_buf = buf[pos:pos + obj_len]
         pos += obj_len
 
-        tag = BLE_Tag.from_buf(obj_buf)
+        tag = hc.ble.BLE_Tag.from_buf(obj_buf)
         msg.add_tag(tag)
 
 
@@ -380,7 +207,7 @@ def main():
 
     if config["debug"]:
         print(yaml.safe_dump(config, default_flow_style=False))
-        BTHome.debug = True
+        hc.ble.BTHome.debug = True
     # TODO: It would be great to apply a schema to config
 
     dev = hc.ble.open(config["interface"])
