@@ -16,7 +16,7 @@ test:
 	pytest-3 \
 		--cov-report=term-missing \
 		--cov-report=html \
-		--cov-fail-under=39 \
+		--cov-fail-under=42 \
 		--cov=. \
 		ble_listen.py \
 		bthome2influx.py \

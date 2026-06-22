@@ -4,6 +4,7 @@ Some simple helpers to make dealing with bluetooth easier
 
 import bluetooth._bluetooth as bluez
 import ctypes
+import hc.measurements
 import struct
 
 EVT_LE_META_EVENT = 0x3e
@@ -102,83 +103,16 @@ class BTHome:
     def _parse_measurements(self, buf):
         pos = 0
         while pos < len(buf):
-            obj_id = buf[pos]
-            pos += 1
+            item = hc.measurements.Measurement.from_bthome(buf, pos)
+            pos = item._end_pos
 
             # TODO:
             # - this could return objects
-            # - the size could be calculated from the struct type string
-
-            data_types = {
-                0: {
-                    "name": "sequence",
-                    "size": 1,
-                    "type": "B",
-                },
-                1: {
-                    "name": "battery",
-                    "size": 1,
-                    "type": "B",
-                    "unit": "%",
-                },
-                2: {
-                    "name": "temperature",
-                    "size": 2,
-                    "type": "<h",
-                    "factor": 0.01,
-                    "unit": "°C",
-                },
-                3: {
-                    "name": "humidity",
-                    "size": 2,
-                    "type": "<H",
-                    "factor": 0.01,
-                    "unit": "%",
-                },
-                0x0c: {
-                    "name": "voltage",
-                    "size": 2,
-                    "type": "<H",
-                    "factor": 0.001,
-                    "unit": "V",
-                },
-                0x10: {
-                    "name": "power",
-                    "size": 1,
-                    "type": "?",
-                },
-                0x11: {
-                    "name": "opening",
-                    "size": 1,
-                    "type": "?",
-                },
-                0x3e: {
-                    "name": "count",
-                    "size": 4,
-                    "type": "<L",
-                },
-            }
 
             if self.debug:
-                print("DEBUG: obj_id=", obj_id, "pos=", pos)
+                print("DEBUG: obj_id=", item._obj_id, "pos=", item._data_pos)
 
-            if obj_id not in data_types:
-                # TODO: be more resilient in the face of unknown
-                raise ValueError(f"Unknown BTHome measurement {obj_id}")
-
-            type = data_types[obj_id]
-            size = type["size"]
-            rawdata = buf[pos:pos + size]
-            pos += size
-
-            raw, = struct.unpack(type["type"], rawdata)
-
-            if "factor" in type:
-                value = raw * type["factor"]
-            else:
-                value = raw
-
-            self.measurements[type["name"]] = value
+            self.measurements[item.name] = item.value
 
 
 class BLE_Tag_Base:
