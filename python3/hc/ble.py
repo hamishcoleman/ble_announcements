@@ -137,3 +137,40 @@ class HCI_Packet:
         self.addr = addr
         self.remainder = buf1
         return self
+
+
+def test_HCI_Packet():
+    import pytest
+
+    # data too short
+    data = b"\x00"
+    with pytest.raises(struct.error):
+        HCI_Packet.from_bytes(data)
+
+    # Wrong packet_type
+    data = b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+    assert HCI_Packet.from_bytes(data) is None
+
+    # Wrong event_code
+    data = b"\x04\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+    assert HCI_Packet.from_bytes(data) is None
+
+    # Wrong subevent_code
+    data = b"\x04\x3e\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+    assert HCI_Packet.from_bytes(data) is None
+
+    # unexpected num_reports
+    data = b"\x04\x3e\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+    with pytest.raises(ValueError):
+        HCI_Packet.from_bytes(data)
+
+    data = b"\x04\x3e\x00\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x01\x5a"
+    hci = HCI_Packet.from_bytes(data)
+
+    assert hci.packet_type == bluez.HCI_EVENT_PKT
+    assert hci.event_code == EVT_LE_META_EVENT
+    assert hci.subevent_code == 2
+    # assert hci.event_type ==
+    # assert hci.address_type ==
+    # assert hci.addr ==
+    assert hci.remainder == b"\x5a"
