@@ -26,6 +26,7 @@ sys.path.insert(
 # I would use site.addsitedir, but it does an append, not insert
 
 import hc.ble  # noqa: E402
+import hc.measurements  # noqa: E402
 
 
 class MACAddr:
@@ -37,106 +38,6 @@ class MACAddr:
         for b in self.addr:
             a.append(f"{b:02x}")
         return ":".join(a)
-
-
-class BTHome:
-    @classmethod
-    def from_buf(cls, buf):
-        return cls(buf)
-
-    def __init__(self, buf):
-        self.info = buf[0]
-        self.measurements = {}
-        self._parse_measurements(buf[1:])
-
-    def __str__(self):
-        s = ["BTHome"]
-        for k, v in self.measurements.items():
-            s += [k, str(v)]
-
-        return " ".join(s)
-
-    def _parse_measurements(self, buf):
-        pos = 0
-        while pos < len(buf):
-            obj_id = buf[pos]
-            pos += 1
-
-            # TODO: this could return objects
-
-            data_types = {
-                0: {
-                    "name": "sequence",
-                    "size": 1,
-                    "type": "u8",
-                },
-                1: {
-                    "name": "battery",
-                    "size": 1,
-                    "type": "u8",
-                    "unit": "%",
-                },
-                2: {
-                    "name": "temperature",
-                    "size": 2,
-                    "type": "s16",
-                    "factor": 0.01,
-                    "unit": "°C",
-                },
-                3: {
-                    "name": "humidity",
-                    "size": 2,
-                    "type": "u16",
-                    "factor": 0.01,
-                    "unit": "%",
-                },
-                0x0c: {
-                    "name": "voltage",
-                    "size": 2,
-                    "type": "u16",
-                    "factor": 0.001,
-                    "unit": "V",
-                },
-                0x10: {
-                    "name": "power",
-                    "size": 1,
-                    "type": "bool",
-                },
-                0x11: {
-                    "name": "opening",
-                    "size": 1,
-                    "type": "?",
-                },
-                0x3e: {
-                    "name": "count",
-                    "size": 4,
-                    "type": "<l",
-                },
-            }
-
-            if obj_id not in data_types:
-                # TODO: be more resilient in the face of unknown
-                raise ValueError(f"Unknown BTHome measurement {obj_id}")
-
-            type = data_types[obj_id]
-
-            if type["type"] == "u8":
-                raw = buf[pos]
-            elif type["type"] == "s16":
-                raw = int.from_bytes(buf[pos:pos+2], "little", signed=True)
-            elif type["type"] == "u16":
-                raw = int.from_bytes(buf[pos:pos+2], "little")
-            elif type["type"] == "bool":
-                raw = buf[pos] != 0
-
-            pos += type["size"]
-
-            if "factor" in type:
-                value = raw * type["factor"]
-            else:
-                value = raw
-
-            self.measurements[type["name"]] = value
 
 
 class MiBeacon:
@@ -232,7 +133,7 @@ class BLE_Tag_Service_Data(BLE_Tag_Base):
         uuid = int.from_bytes(buf[1:3], byteorder="big")
         id2cls = {
             0x95fe: MiBeacon,
-            0xd2fc: BTHome,
+            0xd2fc: hc.ble.BTHome,
         }
         if uuid in id2cls:
             return id2cls[uuid].from_buf(buf[3:])
