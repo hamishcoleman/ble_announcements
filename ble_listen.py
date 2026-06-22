@@ -11,11 +11,21 @@ Listen for BLE advertisements and dump
 
 import argparse
 import bluetooth._bluetooth as bluez
-import ctypes
+import os
 import struct
 import sys
 import time
 
+# Ensure that we look for any modules in our local lib dir.  This allows
+# simple testing and development use.  It also does not break the case where
+# the lib # has been installed properly on the normal sys.path
+sys.path.insert(
+    0,
+    os.path.join(os.path.dirname(os.path.realpath(__file__)), 'python3')
+)
+# I would use site.addsitedir, but it does an append, not insert
+
+import hc.ble  # noqa: E402
 
 EVT_LE_META_EVENT = 0x3e
 
@@ -429,47 +439,11 @@ def argparser():
 def main():
     args = argparser()
 
-    devid = bluez.hci_devid(args.interface)
-    if devid < 0:
-        raise ValueError(f"devid error {devid}")
-
-    dev = bluez.hci_open_dev(devid)
-
-    dll = ctypes.CDLL("libbluetooth.so.3")
-
-    if False:
-        # These are often the default values, maybe we can skip setting it?
-        dll.hci_le_set_scan_parameters(
-            dev.fileno(),
-            0,            # scan_type = passive
-            16,           # interval
-            16,           # window
-            0,            # own_type (unused if passive?)
-            0,            # filter_policy = unfiltered
-            10000         # to
-        )
-
-    # TODO:
-    # - find a way to get scan enable
-    # - dont set it if it is already set
-    # - restore the state on exit
-
-    r = dll.hci_le_set_scan_enable(
-        dev.fileno(),
-        1,            # enable = True
-        0,            # filter_dup
-        10000
-    )
-    if r != 0:
-        # probably eperm
-        # might be "alreacy scanning"
-        # TODO:
-        # - get errno and react differently depending on reason
-        print(f"WARNING: le set scan enable returned {r}")
+    dev = hc.ble.open(args.interface)
+    hc.ble.scan_enable(dev)
 
     # Maybe:
     # systemctl stop bluetooth
-    # hciconfig hci0 up
 
     # Maybe save old filter?
     # filter_saved = dev.getsockopt(bluez.SOL_HCI, bluez.HCI_FILTER, 14)

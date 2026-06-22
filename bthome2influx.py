@@ -13,7 +13,6 @@ Listen for BTHome structured BLE advertisements and send them to influx
 
 import argparse
 import bluetooth._bluetooth as bluez
-import ctypes
 import influxdb
 import os
 import requests
@@ -22,6 +21,16 @@ import sys
 import time
 import yaml
 
+# Ensure that we look for any modules in our local lib dir.  This allows
+# simple testing and development use.  It also does not break the case where
+# the lib # has been installed properly on the normal sys.path
+sys.path.insert(
+    0,
+    os.path.join(os.path.dirname(os.path.realpath(__file__)), 'python3')
+)
+# I would use site.addsitedir, but it does an append, not insert
+
+import hc.ble  # noqa: E402
 
 EVT_LE_META_EVENT = 0x3e
 
@@ -308,33 +317,11 @@ def handle_buf(buf):
     return msg
 
 
-def ble_open(name):
-    # TODO:
-    # rfkill unblock $n
-    # hcitool $name up
-
-    devid = bluez.hci_devid(name)
-    assert devid >= 0
-
-    dev = bluez.hci_open_dev(devid)
-    return dev
 
 
-def ble_scan_enable(dev):
-    dll = ctypes.CDLL("libbluetooth.so.3")
 
-    r = dll.hci_le_set_scan_enable(
-        dev.fileno(),
-        1,            # enable = True
-        0,            # filter_dup
-        10000
-    )
-    if r != 0:
-        # probably eperm
-        # might be "alreacy scanning"
-        # TODO:
-        # - get scane enable and check before set
-        print(f"WARNING: le set scan enable returned {r}")
+
+
 
 
 def argparser():
@@ -509,8 +496,8 @@ def main():
         BTHome.debug = True
     # TODO: It would be great to apply a schema to config
 
-    dev = ble_open(config["interface"])
-    ble_scan_enable(dev)
+    dev = hc.ble.open(config["interface"])
+    hc.ble.scan_enable(dev)
 
     connection_options = config["influx"]["options"]
 
