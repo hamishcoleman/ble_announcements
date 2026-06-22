@@ -262,6 +262,7 @@ class BLE_Tag_Manufacturer(BLE_Tag_Base):
             0x75: "Samsung",
             0x611: "Beurer",
             0x6a8: "GD_Midea",
+            0x4c42: "bluettf",
         }
         return names.get(self.manuf_id, f"0x{self.manuf_id:x}")
 
@@ -283,10 +284,12 @@ class BLE_Tag:
         id2cls = {
             0x01: BLE_Tag_Flags,
             0x02: BLE_Tag_UUID,
+            # 0x03: - Complete List of 16-bit Service Class UUIDs
             0x09: BLE_Tag_Name,
             0x0a: BLE_Tag_TXpower,
             0x16: BLE_Tag_Service_Data,
             0x19: BLE_Tag_Appearance,
+            # 0x1b: - LE Bluetooth Device Address
             0xff: BLE_Tag_Manufacturer,
         }
         cls = id2cls.get(id, BLE_Tag_Base)
