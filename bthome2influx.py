@@ -109,6 +109,26 @@ def handle_buf(buf):
     return msg
 
 
+def test_handle_buf():
+    buf = bytes.fromhex(
+        "043e0002010000"
+        "010203040506"
+        "1a"
+        "020106"
+        "0B094449592D73656E736f72"
+        "0A16D2FC4002C40903BF13"
+        "1f"
+    )
+    msg = handle_buf(buf)
+    msg.timestamp = 100000
+
+    expect = " ".join([
+        "100000 06:05:04:03:02:01",
+        "BTHome temperature 25.0 humidity 50.550000000000004"
+    ])
+    assert str(msg) == expect
+
+
 def argparser():
     args = argparse.ArgumentParser(
         description=__doc__,
