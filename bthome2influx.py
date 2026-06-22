@@ -81,7 +81,8 @@ class Message:
 
 def handle_buf_inner1(msg, buf):
     """second layer wrapped message"""
-    # TODO: It probably has a type name
+    # https://www.bluetooth.com/wp-content/uploads/Files/Specification/HTML/Core-54/out/en/host/generic-access-profile.html#UUID-c2a0b759-8ef4-7055-c13b-17c083691361
+    # 11. Advertising and Scan Response data format
     pos = 0
 
     while pos < len(buf):

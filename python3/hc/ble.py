@@ -134,6 +134,8 @@ class BLE_Tag_Base:
 
 
 class BLE_Tag_Name(BLE_Tag_Base):
+    # https://www.bluetooth.com/wp-content/uploads/Files/Specification/HTML/CSS_v11/out/en/supplement-to-the-bluetooth-core-specification/data-types-specification.html#UUID-b1d0edbc-fc9e-507a-efe4-3fd4b4817a52
+    # 2.1.2. Example advertising data – Complete Local Name
     def __init__(self, buf):
         super().__init__(buf)
         self.short = "N"
@@ -170,10 +172,13 @@ class BLE_Tag:
     @classmethod
     def from_buf(cls, buf):
         """Extract the id and create an object of the correct class"""
+        # https://www.bluetooth.com/wp-content/uploads/Files/Specification/HTML/Core-54/out/en/host/generic-access-profile.html#UUID-c2a0b759-8ef4-7055-c13b-17c083691361
         if len(buf) < 1:
             return None
+        # extract AD_Type and use that to find a specific class
         id = buf[0]
 
+        # https://bitbucket.org/bluetooth-SIG/public/src/6e06a498f44bc1e7e2de65524ed6509d26409d22/assigned_numbers/core/ad_types.yaml#lines-59
         id2cls = {
             0x09: BLE_Tag_Name,
             0x16: BLE_Tag_Service_Data,
@@ -223,6 +228,8 @@ class HCI_Packet:
     #
     # https://www.bluetooth.com/wp-content/uploads/Files/Specification/HTML/Core-54/out/en/host-controller-interface/host-controller-interface-functional-specification.html
     # 5.4.4. HCI Event packet
+    # 7.7.65. LE Meta event
+    # 7.7.65.2. LE Advertising Report event
     #
     # TODO:
     # - the above links are incomplete, document the rest of the structure
@@ -267,7 +274,7 @@ class HCI_Packet:
         # if len1 != len(buf1) + size of decoded fields:
         #     return None
 
-        if self.subevent_code != 2:
+        if self.subevent_code != 2:  # HCI_LE_Advertising_Report event
             return None
         if num_reports != 1:
             raise ValueError("Cannot handle num_reports != 1")
