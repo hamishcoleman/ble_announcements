@@ -27,8 +27,6 @@ sys.path.insert(
 
 import hc.ble  # noqa: E402
 
-EVT_LE_META_EVENT = 0x3e
-
 
 class MACAddr:
     def __init__(self, buf):
@@ -407,7 +405,7 @@ def handle_buf(buf):
     event_code = buf[pos]
     pos += 1
 
-    if event_code != EVT_LE_META_EVENT:
+    if event_code != hc.ble.EVT_LE_META_EVENT:
         raise ValueError("expected EVT_LE_META_EVENT")
 
     # consistancy check.
@@ -445,13 +443,7 @@ def main():
     # Maybe:
     # systemctl stop bluetooth
 
-    # Maybe save old filter?
-    # filter_saved = dev.getsockopt(bluez.SOL_HCI, bluez.HCI_FILTER, 14)
-
-    filter = bluez.hci_filter_new()
-    bluez.hci_filter_set_ptype(filter, bluez.HCI_EVENT_PKT)
-    bluez.hci_filter_set_event(filter, EVT_LE_META_EVENT)
-    dev.setsockopt(bluez.SOL_HCI, bluez.HCI_FILTER, filter)
+    hc.ble.set_filter(dev)
 
     try:
         while True:

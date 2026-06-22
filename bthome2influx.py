@@ -33,8 +33,6 @@ sys.path.insert(
 import hc.ble  # noqa: E402
 import hc.config  # noqa: E402
 
-EVT_LE_META_EVENT = 0x3e
-
 
 class MACAddr:
     def __init__(self, buf):
@@ -301,7 +299,7 @@ def handle_buf(buf):
 
     if event1 != bluez.HCI_EVENT_PKT:
         return None
-    if event_code != EVT_LE_META_EVENT:
+    if event_code != hc.ble.EVT_LE_META_EVENT:
         return None
     # if len1 != len(buf1) + size of decoded fields:
     #     return None
@@ -437,18 +435,8 @@ def main():
         # db is None
         db = None
 
-    # Maybe save old filter?
-    # filter_saved = dev.getsockopt(bluez.SOL_HCI, bluez.HCI_FILTER, 14)
 
-    filter = bluez.hci_filter_new()
-    bluez.hci_filter_set_ptype(filter, bluez.HCI_EVENT_PKT)
-    bluez.hci_filter_set_event(filter, EVT_LE_META_EVENT)
-    dev.setsockopt(bluez.SOL_HCI, bluez.HCI_FILTER, filter)
-
-    # FIXME:
-    # - how do we know we have permissions to listen?
-    # - running this with user perms simply ends up never getting data
-    #   (No errors registered)
+    hc.ble.set_filter(dev)
 
     prev_seq = {}
 

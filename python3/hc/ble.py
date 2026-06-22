@@ -5,6 +5,8 @@ Some simple helpers to make dealing with bluetooth easier
 import bluetooth._bluetooth as bluez
 import ctypes
 
+EVT_LE_META_EVENT = 0x3e
+
 
 def open(name):
     """
@@ -53,3 +55,22 @@ def scan_enable(dev):
         # TODO:
         # - get scane enable and check before set
         print(f"WARNING: le set scan enable returned {r}")
+
+
+def set_filter(dev):
+    """
+    Apply filters to the socket to allow BLE event reception
+    """
+
+    # Maybe save old filter?
+    # filter_saved = dev.getsockopt(bluez.SOL_HCI, bluez.HCI_FILTER, 14)
+
+    filter = bluez.hci_filter_new()
+    bluez.hci_filter_set_ptype(filter, bluez.HCI_EVENT_PKT)
+    bluez.hci_filter_set_event(filter, EVT_LE_META_EVENT)
+    dev.setsockopt(bluez.SOL_HCI, bluez.HCI_FILTER, filter)
+
+    # FIXME:
+    # - how do we know we have permissions to listen?
+    # - running this with user perms simply ends up never getting data
+    #   (No errors registered)
