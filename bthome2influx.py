@@ -208,9 +208,12 @@ def config_init(args):
         config["verbose"] = False
 
     # Backwards support
-    if "ble" not in config and "nodes" in config:
+    if "nodes" in config:
         print("Warning: old config for BLE nodes detected")
-        config["ble"] = config["nodes"]
+
+        if len(config["ble"]) == 0:
+            print("Using transitional conversion of old node config")
+            config["ble"] = config["nodes"]
 
     return config
 
