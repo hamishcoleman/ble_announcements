@@ -101,6 +101,9 @@ def handle_buf(buf):
     # - accumulate metrics for unexpected events
 
     hci = hc.ble.HCI_Packet.from_bytes(buf)
+    if hci is None:
+        # Not a packet we can decode
+        return None
 
     msg = Message()
     msg.addr = MACAddr(hci.addr[::-1])
