@@ -3,7 +3,6 @@ Some simple helpers to make dealing with bluetooth easier
 """
 
 import bluetooth._bluetooth as bluez
-import ctypes
 import hc.measurements
 import struct
 
@@ -27,36 +26,18 @@ def open(name):
 
 
 def scan_enable(dev):
-    dll = ctypes.CDLL("libbluetooth.so.3")
-
-    # # These are often the default values, maybe we can skip setting it?
-    # dll.hci_le_set_scan_parameters(
-    #     dev.fileno(),
-    #     0,            # scan_type = passive
-    #     16,           # interval
-    #     16,           # window
-    #     0,            # own_type (unused if passive?)
-    #     0,            # filter_policy = unfiltered
-    #     10000         # to
-    # )
-
     # TODO:
-    # - find a way to get scan enable
-    # - dont set it if it is already set
-    # - restore the state on exit
-
-    r = dll.hci_le_set_scan_enable(
-        dev.fileno(),
-        1,            # enable = True
-        0,            # filter_dup
-        10000
+    # HCI_COMMAND_PKT + command=0x200c + paramlen=2 + true + false
+    fmt = "<BHBBB"
+    buf = struct.pack(
+        fmt,
+        bluez.HCI_COMMAND_PKT,
+        0x200c,  # command = set_scan
+        2,       # paramlen
+        True,
+        False,
     )
-    if r != 0:
-        # probably eperm
-        # might be "alreacy scanning"
-        # TODO:
-        # - get scane enable and check before set
-        print(f"WARNING: le set scan enable returned {r}")
+    dev.send(buf)
 
 
 def set_filter(dev):
