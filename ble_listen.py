@@ -300,13 +300,18 @@ def handle_buf(buf):
     event = buf[pos]
     pos += 1
     if event != bluez.HCI_EVENT_PKT:
+        print(buf.hex())
         raise ValueError("expected HCI_EVENT_PKT")
 
     # Bluetooth Core Vol 4, Part E, 7.7.65.2 LE Advertising Report event
     event_code = buf[pos]
     pos += 1
 
+    if event_code == bluez.EVT_CMD_COMPLETE:
+        return f"EVT_CMD_COMPLETE {buf.hex()}"
+
     if event_code != hc.ble.EVT_LE_META_EVENT:
+        print(buf.hex())
         raise ValueError("expected EVT_LE_META_EVENT")
 
     # consistancy check.
