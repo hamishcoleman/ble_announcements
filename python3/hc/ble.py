@@ -236,6 +236,18 @@ class HCI_Packet:
 
     @classmethod
     def from_bytes(cls, buf):
+        packet_type = buf[0]
+        if packet_type != bluez.HCI_EVENT_PKT:
+            # TODO: should we keep track of unexpected packets?
+            return None
+
+        event_code = buf[1]
+        if event_code != EVT_LE_META_EVENT:
+            # we only understand event packets
+            return None
+
+        # We only get to here if we have confirmed the packet structure
+
         fmt0 = "BBBB3B6sB"
         len0 = struct.calcsize(fmt0)
         (
@@ -267,10 +279,6 @@ class HCI_Packet:
             # on unexpected conditions.
             self.rssi = None
 
-        if self.packet_type != bluez.HCI_EVENT_PKT:
-            return None
-        if self.event_code != EVT_LE_META_EVENT:
-            return None
         # if len1 != len(buf1) + size of decoded fields:
         #     return None
 
